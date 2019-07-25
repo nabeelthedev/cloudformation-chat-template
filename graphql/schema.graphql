@@ -1,0 +1,59 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Query {
+  listGroups(nextToken: String): ListGroupsResponse!
+  listMessages(
+    groupId: ID!
+    nextToken: String
+    after: Int
+  ): ListMessagesResponse!
+  getInviteLink(groupId: ID!): ReferenceLink!
+}
+
+type Mutation {
+  createGroup(name: String): Group!
+  postMessage(groupId: ID!, message: String!): Message!
+  joinGroup(id: ID!): Group!
+  updateDisplayName(displayName: String!): User!
+}
+
+type Subscription {
+  messageUpdates(groupId: ID!): Message
+    @aws_subscribe(mutations: ["postMessage"])
+}
+
+type ReferenceLink {
+  id: ID!
+}
+
+type User {
+  displayName: String
+}
+
+type Group {
+  id: ID!
+  name: String
+}
+
+type ListGroupsResponse {
+  items: [Group]
+  nextToken: String
+}
+
+type Message {
+  groupId: ID!
+  id: ID!
+  createTime: Int!
+  message: String!
+  author: String!
+  displayName: String
+}
+
+type ListMessagesResponse {
+  items: [Message]
+  nextToken: String
+}

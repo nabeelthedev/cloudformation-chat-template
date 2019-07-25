@@ -1,0 +1,15 @@
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
+#end
+#if($ctx.stash.resolver.name == "postMessage")
+    #if(!$ctx.result)
+        $util.unauthorized()
+    #end
+#end
+#if($ctx.stash.resolver.name == "listMessages")
+    #if(!$ctx.result)
+        $util.unauthorized()
+    #end
+#end
+
+$util.toJson($ctx.result)

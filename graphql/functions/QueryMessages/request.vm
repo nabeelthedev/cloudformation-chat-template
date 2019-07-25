@@ -1,0 +1,25 @@
+#if($ctx.stash.resolver.name == "listMessages")
+    #set($groupId = $ctx.args.groupId)
+    #if($ctx.args.nextToken)
+        #set($nextToken = $ctx.args.nextToken)
+    #end
+    #if($ctx.args.after)
+        #set($after = $ctx.args.after)
+    #end
+#end
+{
+    "version" : "2018-05-29",
+    "operation" : "Query",
+    "query" : {
+        "expression" : "groupId = :groupId#if($after) AND createTime > :cta#end",
+        "expressionValues" : {
+            ":groupId" : {"S": "${groupId}"}
+            #if($after),":cta": {"N": "${after}"}#end
+        }
+    },
+    "index": "MessagesGroupCreateTime",
+    "limit": 10,
+    "scanIndexForward" : false,
+    "select" : "ALL_ATTRIBUTES"
+    #if($nextToken),"nextToken": "${nextToken}"#end
+}

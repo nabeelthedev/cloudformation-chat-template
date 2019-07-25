@@ -1,0 +1,21 @@
+#if($ctx.stash.resolver.name == "postMessage")
+    #if($ctx.stash.resolver.result.displayName)
+        #return
+    #else
+        #set($displayName = "DisplayName")
+        $util.qr($ctx.stash.resolver.result.put("displayName", $displayName))
+    #end
+#end
+{
+    "version" : "2017-02-28",
+    "operation" : "UpdateItem",
+    "key": {
+        "id" : {"S": "${ctx.identity.sub}"}
+    },
+    "update" : {
+        "expression" : "SET displayName = :d",
+       "expressionValues" : {
+           ":d" : {"S": "${displayName}"}
+       }
+    }
+}

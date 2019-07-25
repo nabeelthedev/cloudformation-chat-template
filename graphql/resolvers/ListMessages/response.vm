@@ -1,0 +1,2 @@
+## $util.toJson($ctx.stash.resolver.result)
+$util.toJson($ctx.result)

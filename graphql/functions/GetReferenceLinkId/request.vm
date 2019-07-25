@@ -1,0 +1,19 @@
+#if($ctx.stash.resolver.name == "getInviteLink")
+    #set($value = $ctx.args.groupId)
+#end
+{
+  "version": "2017-02-28",
+  "operation": "Query",
+  "query": {
+    "expression": "#value = :v",
+    "expressionNames" : {
+            "#value" : "value"
+        },
+    "expressionValues" : {
+            ":v" : {"S": "${value}"}
+        }
+  },
+  "index": "ReferenceLinkValue",
+  "limit": 1,
+  "consistentRead": false
+}

@@ -1,0 +1,27 @@
+#if($ctx.stash.resolver.name == "postMessage")
+    #set($groupId = "${ctx.args.groupId}")
+    $util.qr($ctx.stash.resolver.result.put("groupId", "${groupId}"))
+    #set($message = "${ctx.args.message}")
+    $util.qr($ctx.stash.resolver.result.put("message", "${message}"))
+    #set($id = "${util.autoId()}")
+    $util.qr($ctx.stash.resolver.result.put("id", "${id}"))
+    #set($createTime = "${util.time.nowEpochSeconds()}")
+    $util.qr($ctx.stash.resolver.result.put("createTime", "${createTime}"))
+    #set($author = "${ctx.identity.sub}")
+    $util.qr($ctx.stash.resolver.result.put("author", "${author}"))
+    #set($displayName = "${ctx.stash.resolver.result.displayName}")   
+#end
+{
+  "version": "2017-02-28",
+  "operation": "PutItem",
+  "key": {
+    "groupId": { "S": "${groupId}" },
+    "id": {"S": "${id}"}
+  },
+  "attributeValues" : {
+    "message": {"S": "${message}"},
+    "createTime": {"N": "${createTime}"},
+    "author": {"S": "${author}"},
+    "displayName": {"S": "${displayName}"}
+  }
+}

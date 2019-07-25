@@ -1,0 +1,20 @@
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
+#end
+
+#if($ctx.stash.resolver.name == "joinGroup")
+    #if(!$ctx.result)
+        $util.error("Group does not exist.", "Group not found.")
+    #else
+        $util.qr($ctx.stash.resolver.put("result", $ctx.result))
+    #end
+#end
+
+#if($ctx.stash.resolver.name == "getInviteLink")
+    #if(!$ctx.result)
+        $util.error("Group does not exist.", "Group not found.")
+    #end
+
+#end
+
+$util.toJson($ctx.result)

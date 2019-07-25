@@ -1,0 +1,8 @@
+#if($ctx.error)
+    $util.error($ctx.error.message, $ctx.error.type)
+#end
+#if($ctx.stash.resolver.name == "getInviteLink")
+    $util.qr($ctx.stash.resolver.result.put("id", "${ctx.result.id}"))
+#end
+## Pass back the result from DynamoDB. **
+$util.toJson($ctx.result)

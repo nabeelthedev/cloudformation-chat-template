@@ -1,0 +1,27 @@
+#if($ctx.stash.resolver.name == "createGroup")
+    #if($ctx.args.name)
+        ## check for valid group name
+        #if($ctx.args.name == "" || $ctx.args.name.length() < 2 || $ctx.args.name.length() > 20)
+            $util.error("Group Name has to be between 2 and 20 characters.", "Invalid Group Name")
+        #elseif(!$util.matches("[a-zA-Z]+", "${ctx.args.name}"))
+            $util.error("Group Name can only have letters.", "Invalid Group Name")       
+        #else
+            #set($name = $ctx.args.name)
+        #end
+    #else
+        #set($name = "GroupName")
+    #end
+    #set($id = "${util.autoId()}")
+    $util.qr($ctx.stash.resolver.result.put("id", "${id}"))
+    $util.qr($ctx.stash.resolver.result.put("name", "${name}"))
+#end
+{
+  "version": "2017-02-28",
+  "operation": "PutItem",
+  "key": {
+    "id": { "S": "${id}" }
+  },
+  "attributeValues" : {
+    "name": {"S": "${name}"}
+  }
+}

@@ -1,0 +1,772 @@
+Parameters:
+  UserPoolId:
+    Type: String
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - appsync.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: '/'
+      RoleName:
+        Fn::Sub: '${AWS::StackName}-${AWS::Region}-ServiceRole'
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - Fn::GetAtt:
+                      - UsersDB
+                      - Arn
+                  - Fn::GetAtt:
+                      - ReferenceLinksDB
+                      - Arn
+                  - Fn::GetAtt:
+                      - GroupsDB
+                      - Arn
+                  - Fn::GetAtt:
+                      - GroupConnectionsDB
+                      - Arn
+                  - Fn::GetAtt:
+                      - MessagesDB
+                      - Arn
+                  - Fn::Join:
+                    - ""
+                    - - Fn::GetAtt:
+                        - MessagesDB
+                        - Arn
+                      - /*/*
+                  - Fn::Join:
+                    - ""
+                    - - Fn::GetAtt:
+                        - ReferenceLinksDB
+                        - Arn
+                      - /*/*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: '*'
+    DependsOn:
+      - UsersDB
+      - ReferenceLinksDB
+      - GroupsDB
+      - GroupConnectionsDB
+      - MessagesDB
+  GraphQLApi:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      AuthenticationType: AMAZON_COGNITO_USER_POOLS
+      Name:
+        Ref: AWS::StackName
+      UserPoolConfig:
+        UserPoolId:
+          Fn::ImportValue:
+            Ref: UserPoolId
+        AwsRegion:
+          Ref: AWS::Region
+        DefaultAction: ALLOW
+  GraphQLSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DefinitionS3Location: './graphql/schema.graphql'
+    DependsOn: GraphQLApi
+  UsersDBDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: UsersDB
+      Name: UsersDB
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AMAZON_DYNAMODB
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - UsersDB
+  ReferenceLinksDBDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: ReferenceLinksDB
+      Name: ReferenceLinksDB
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AMAZON_DYNAMODB
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - ReferenceLinksDB
+  GroupsDBDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: GroupsDB
+      Name: GroupsDB
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AMAZON_DYNAMODB
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - GroupsDB
+  GroupConnectionsDBDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: GroupConnectionsDB
+      Name: GroupConnectionsDB
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AMAZON_DYNAMODB
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - GroupConnectionsDB
+  MessagesDBDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DynamoDBConfig:
+        AwsRegion:
+          Ref: AWS::Region
+        TableName:
+          Ref: MessagesDB
+      Name: MessagesDB
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AMAZON_DYNAMODB
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - MessagesDB
+  CreateReferenceLinkLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: './functions/CreateReferenceLink'
+      Handler: index.handler
+      Role:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Runtime: nodejs10.x
+      Environment:
+        Variables:
+          ReferenceLinksTableName:
+            Ref: ReferenceLinksDB
+    DependsOn:
+      - ServiceRole
+      - ReferenceLinksDB
+  CreateReferenceLinkLambdaDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      LambdaConfig:
+        LambdaFunctionArn:
+          Fn::GetAtt:
+            - CreateReferenceLinkLambda
+            - Arn
+      Name: CreateReferenceLinkLambda
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - ServiceRole
+          - Arn
+      Type: AWS_LAMBDA
+    DependsOn:
+      - GraphQLApi
+      - ServiceRole
+      - CreateReferenceLinkLambda
+  NoneDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      Type: NONE
+      Name: None
+    DependsOn:
+      - GraphQLApi
+  AppsyncFunctionGetUser:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - UsersDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: GetUser
+      RequestMappingTemplateS3Location: './graphql/functions/GetUser/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/GetUser/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - UsersDBDataSource
+  AppsyncFunctionCreateReferenceLink:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - CreateReferenceLinkLambdaDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: CreateReferenceLink
+      RequestMappingTemplateS3Location: './graphql/functions/CreateReferenceLink/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/CreateReferenceLink/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - CreateReferenceLinkLambdaDataSource
+  AppsyncFunctionGetReferenceLinkId:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - ReferenceLinksDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: GetReferenceLinkId
+      RequestMappingTemplateS3Location: './graphql/functions/GetReferenceLinkId/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/GetReferenceLinkId/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - ReferenceLinksDBDataSource
+  AppsyncFunctionGetReferenceLinkValue:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - ReferenceLinksDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: GetReferenceLinkValue
+      RequestMappingTemplateS3Location: './graphql/functions/GetReferenceLinkValue/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/GetReferenceLinkValue/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - ReferenceLinksDBDataSource
+  AppsyncFunctionPutGroup:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - GroupsDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: PutGroup
+      RequestMappingTemplateS3Location: './graphql/functions/PutGroup/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/PutGroup/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - GroupsDBDataSource
+  AppsyncFunctionPutGroupConnection:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - GroupConnectionsDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: PutGroupConnection
+      RequestMappingTemplateS3Location: './graphql/functions/PutGroupConnection/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/PutGroupConnection/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - GroupConnectionsDBDataSource
+  AppsyncFunctionUpdateDisplayName:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - UsersDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: UpdateDisplayName
+      RequestMappingTemplateS3Location: './graphql/functions/UpdateDisplayName/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/UpdateDisplayName/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - UsersDBDataSource
+  AppsyncFunctionQueryMessages:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - MessagesDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: QueryMessages
+      RequestMappingTemplateS3Location: './graphql/functions/QueryMessages/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/QueryMessages/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - MessagesDBDataSource
+  AppsyncFunctionGetGroupConnection:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - GroupConnectionsDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: GetGroupConnection
+      RequestMappingTemplateS3Location: './graphql/functions/GetGroupConnection/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/GetGroupConnection/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - GroupConnectionsDBDataSource
+  AppsyncFunctionPutMessage:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - MessagesDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: PutMessage
+      RequestMappingTemplateS3Location: './graphql/functions/PutMessage/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/PutMessage/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - MessagesDBDataSource
+  AppsyncFunctionGetGroup:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      DataSourceName:
+        Fn::GetAtt:
+          - GroupsDBDataSource
+          - Name
+      FunctionVersion: '2018-05-29'
+      Name: GetGroup
+      RequestMappingTemplateS3Location: './graphql/functions/GetGroup/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/functions/GetGroup/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - GroupsDBDataSource
+  AppsyncResolverCreateGroup:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: createGroup
+      Kind: PIPELINE   
+      PipelineConfig:
+          Functions:
+            - Fn::GetAtt: 
+              - AppsyncFunctionPutGroup 
+              - FunctionId
+            - Fn::GetAtt: 
+              - AppsyncFunctionPutGroupConnection
+              - FunctionId
+      RequestMappingTemplateS3Location: './graphql/resolvers/CreateGroup/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/CreateGroup/response.vm'
+      TypeName: Mutation
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - AppsyncFunctionPutGroup
+      - AppsyncFunctionPutGroupConnection
+  AppsyncResolverListGroupConnections:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      TypeName: Query
+      FieldName: listGroups
+      Kind: UNIT   
+      DataSourceName: 
+        Fn::GetAtt:
+          - GroupConnectionsDBDataSource
+          - Name
+      RequestMappingTemplateS3Location: './graphql/resolvers/ListGroupConnections/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/ListGroupConnections/response.vm'
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - GroupConnectionsDBDataSource
+  AppsyncResolverListGroups:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      TypeName: ListGroupsResponse
+      FieldName: items
+      Kind: UNIT   
+      DataSourceName: 
+        Fn::GetAtt:
+          - GroupsDBDataSource
+          - Name
+      RequestMappingTemplate: 
+        Fn::Join: 
+          - ""
+          - - Fn::Sub:
+              - '#if($ctx.source.items == [])
+              #return($ctx.source.items)
+              #end
+              {
+                "version" : "2018-05-29",
+                "operation" : "BatchGetItem",
+                "tables" : {
+                  "${TableName}": {'
+              - TableName: 
+                  Ref: GroupsDB 
+            - '"keys": [
+              #foreach($i in $ctx.source.items)
+              {
+                "id": {"S": "${i.groupId}"}
+              },
+              #end
+              ],
+              "consistentRead": false
+              }
+              }
+              }'
+      ResponseMappingTemplate: 
+        Fn::Sub:
+          - '#if($ctx.error)
+          $util.error($ctx.error.message, $ctx.error.type)
+          #end
+          $util.toJson($ctx.result.data.${TableName})'
+          - TableName: 
+              Ref: GroupsDB 
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - GroupsDB
+      - GroupsDBDataSource
+  AppsyncResolverPostMessage:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: postMessage
+      Kind: PIPELINE   
+      PipelineConfig:
+          Functions:
+            - Fn::GetAtt: 
+              - AppsyncFunctionGetGroupConnection 
+              - FunctionId
+            - Fn::GetAtt: 
+              - AppsyncFunctionGetUser
+              - FunctionId
+            - Fn::GetAtt: 
+              - AppsyncFunctionUpdateDisplayName
+              - FunctionId
+            - Fn::GetAtt: 
+              - AppsyncFunctionPutMessage
+              - FunctionId
+      RequestMappingTemplateS3Location: './graphql/resolvers/PostMessage/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/PostMessage/response.vm'
+      TypeName: Mutation
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - AppsyncFunctionGetGroupConnection
+      - AppsyncFunctionGetUser
+      - AppsyncFunctionPutMessage
+      - AppsyncFunctionUpdateDisplayName
+  AppsyncResolverGetInviteLink:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: getInviteLink
+      Kind: PIPELINE   
+      PipelineConfig:
+          Functions:
+            - Fn::GetAtt:
+              - AppsyncFunctionGetGroup
+              - FunctionId
+            - Fn::GetAtt: 
+              - AppsyncFunctionGetReferenceLinkId
+              - FunctionId
+            - Fn::GetAtt:
+              - AppsyncFunctionCreateReferenceLink
+              - FunctionId
+      RequestMappingTemplateS3Location: './graphql/resolvers/GetInviteLink/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/GetInviteLink/response.vm'
+      TypeName: Query
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - AppsyncFunctionGetReferenceLinkId
+      - AppsyncFunctionGetGroup
+      - AppsyncFunctionCreateReferenceLink
+  AppsyncResolverListMessages:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: listMessages
+      TypeName: Query
+      Kind: PIPELINE
+      RequestMappingTemplateS3Location: './graphql/resolvers/ListMessages/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/ListMessages/response.vm'
+      PipelineConfig:
+        Functions:
+          - Fn::GetAtt: 
+            - AppsyncFunctionGetGroupConnection
+            - FunctionId
+          - Fn::GetAtt: 
+            - AppsyncFunctionQueryMessages
+            - FunctionId
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - MessagesDBDataSource
+      - AppsyncFunctionGetGroupConnection
+      - AppsyncFunctionQueryMessages
+  AppsyncResolverUpdateDisplayName:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: updateDisplayName
+      TypeName: Mutation
+      Kind: UNIT
+      RequestMappingTemplateS3Location: './graphql/resolvers/UpdateDisplayName/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/UpdateDisplayName/response.vm'
+      DataSourceName: 
+        Fn::GetAtt:
+          - UsersDBDataSource
+          - Name
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - UsersDBDataSource
+  AppsyncResolverJoinGroup:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+          - GraphQLApi
+          - ApiId
+      FieldName: joinGroup
+      TypeName: Mutation
+      Kind: PIPELINE
+      RequestMappingTemplateS3Location: './graphql/resolvers/JoinGroup/request.vm'
+      ResponseMappingTemplateS3Location: './graphql/resolvers/JoinGroup/response.vm'
+      PipelineConfig:
+        Functions:
+          - Fn::GetAtt: 
+            - AppsyncFunctionGetReferenceLinkValue
+            - FunctionId
+          - Fn::GetAtt: 
+            - AppsyncFunctionGetGroup
+            - FunctionId
+          - Fn::GetAtt: 
+            - AppsyncFunctionPutGroupConnection
+            - FunctionId
+    DependsOn:
+      - GraphQLApi
+      - GraphQLSchema
+      - AppsyncFunctionGetReferenceLinkValue
+      - AppsyncFunctionPutGroupConnection
+      - AppsyncFunctionGetGroup
+  UsersDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+  ReferenceLinksDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: value
+          AttributeType: S
+      TimeToLiveSpecification:
+        AttributeName: expirationTime
+        Enabled: true
+      GlobalSecondaryIndexes:
+        - IndexName: ReferenceLinkValue
+          KeySchema: 
+            - AttributeName: value
+              KeyType: HASH
+          Projection: 
+            ProjectionType: ALL
+  GroupsDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+  GroupConnectionsDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: groupId
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: groupId
+          AttributeType: S
+  MessagesDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: groupId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: groupId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: createTime
+          AttributeType: N
+      GlobalSecondaryIndexes:
+        - IndexName: MessagesGroupCreateTime
+          KeySchema: 
+            - AttributeName: groupId
+              KeyType: HASH
+            - AttributeName: createTime
+              KeyType: RANGE
+          Projection: 
+            ProjectionType: ALL
+

@@ -1,0 +1,14 @@
+#if($ctx.stash.resolver.name == "getUser")
+    #set($id = $ctx.identity.sub)
+#end
+#if($ctx.stash.resolver.name == "postMessage")
+    #set($id = $ctx.identity.sub)
+#end
+{
+  "version": "2017-02-28",
+  "operation": "GetItem",
+  "key": {
+    "id": { "S": "${id}" }
+  },
+  "consistentRead": false
+}

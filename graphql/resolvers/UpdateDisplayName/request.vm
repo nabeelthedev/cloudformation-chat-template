@@ -1,0 +1,22 @@
+## check for valid displayName
+#if($ctx.args.displayName == "" || $ctx.args.displayName.length() < 2 || $ctx.args.displayName.length() > 20)
+    $util.error("Display Name has to be between 2 and 20 characters.", "Invalid Display Name")
+#elseif(!$util.matches("[a-zA-Z0-9]+", "${ctx.args.displayName}"))
+    $util.error("Display Name can only have letters and numbers.", "Invalid Display Name")
+#else
+    #set($displayName = $ctx.args.displayName)
+#end
+
+{
+    "version" : "2017-02-28",
+    "operation" : "UpdateItem",
+    "key": {
+        "id" : {"S": "${ctx.identity.sub}"}
+    },
+    "update" : {
+        "expression" : "SET displayName = :d",
+       "expressionValues" : {
+           ":d" : {"S": "${displayName}"}
+       }
+    }
+}

@@ -1,0 +1,14 @@
+#if($ctx.stash.resolver.name == "joinGroup")
+    #set($id = $ctx.stash.resolver.result.groupId)
+#end
+#if($ctx.stash.resolver.name == "getInviteLink")
+    #set($id = $ctx.args.groupId)
+#end
+{
+  "version": "2017-02-28",
+  "operation": "GetItem",
+  "key": {
+    "id": { "S": "${id}" }
+  },
+  "consistentRead": false
+}
